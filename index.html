@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Just Work</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: "Inter", sans-serif;
+      background-color: #0d1117;
+      color: #e6edf3;
+    }
+    .chat-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+    }
+    .tab-button.active {
+      background-color: #1f6feb;
+      color: white;
+    }
+    .chat-messages {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .message {
+      max-width: 80%;
+      padding: 0.75rem 1rem;
+      border-radius: 1rem;
+      line-height: 1.4;
+    }
+    .message.user {
+      background-color: #238636;
+      align-self: flex-end;
+    }
+    .message.ai {
+      background-color: #1c2128;
+      border: 1px solid #30363d;
+      align-self: flex-start;
+    }
+    .input-area {
+      display: flex;
+      border-top: 1px solid #30363d;
+      padding: 0.75rem;
+      background: #161b22;
+    }
+    .input-area input {
+      flex: 1;
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: 0.5rem;
+      color: #e6edf3;
+      padding: 0.5rem 1rem;
+    }
+    .input-area button {
+      background: #1f6feb;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      margin-left: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <header class="p-4 border-b border-gray-700 flex justify-between items-center bg-[#161b22]">
+      <h1 class="text-2xl font-bold">Just Work</h1>
+      <div class="flex space-x-2">
+        <button id="chatTab" class="tab-button active px-3 py-1 rounded-md">Chat</button>
+        <button id="tasksTab" class="tab-button px-3 py-1 rounded-md">Tasks</button>
+      </div>
+    </header>
+
+    <!-- Chat Section -->
+    <div id="chatSection" class="flex flex-col h-full">
+      <div id="chatMessages" class="chat-messages">
+        <div class="message ai">👋 Hi! I'm your Just Work AI assistant. How can I help you today?</div>
+      </div>
+      <div class="input-area">
+        <input id="userInput" type="text" placeholder="Type your message..." />
+        <button id="sendBtn">Send</button>
+      </div>
+    </div>
+
+    <!-- Tasks Section -->
+    <div id="tasksSection" class="hidden p-4 space-y-4 overflow-y-auto h-full bg-[#0d1117]">
+      <h2 class="text-xl font-bold mb-2">📚 Homework Tracker</h2>
+      <form id="taskForm" class="space-y-2">
+        <input id="taskName" type="text" placeholder="Task name..." class="w-full p-2 rounded-md bg-[#161b22] border border-gray-700" required />
+        <input id="subjectName" type="text" placeholder="Subject..." class="w-full p-2 rounded-md bg-[#161b22] border border-gray-700" required />
+        <input id="dueDate" type="date" class="w-full p-2 rounded-md bg-[#161b22] border border-gray-700" required />
+        <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 py-2 rounded-md">Add Task</button>
+      </form>
+      <div id="tasksList" class="space-y-3"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    // Placeholder Firebase setup
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "YOUR_FIREBASE_API_KEY",
+      authDomain: "YOUR_PROJECT.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT.appspot.com",
+      messagingSenderId: "YOUR_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    let userId = null;
+    signInAnonymously(auth).then(user => {
+      userId = user.user.uid;
+      console.log("Signed in as:", userId);
+      loadTasks();
+    });
+
+    const taskForm = document.getElementById("taskForm");
+    const tasksList = document.getElementById("tasksList");
+
+    const tasksCollection = () => collection(db, `users/${userId}/tasks`);
+
+    taskForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const task = {
+        taskName: document.getElementById("taskName").value,
+        subject: document.getElementById("subjectName").value,
+        dueDate: document.getElementById("dueDate").value,
+        createdAt: Date.now()
+      };
+      await addDoc(tasksCollection(), task);
+      taskForm.reset();
+    });
+
+    function loadTasks() {
+      onSnapshot(tasksCollection(), (snapshot) => {
+        tasksList.innerHTML = "";
+        snapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          const taskEl = document.createElement("div");
+          taskEl.className = "p-3 bg-[#161b22] rounded-md border border-gray-700 flex justify-between items-center";
+          taskEl.innerHTML = `
+            <div>
+              <p class="font-bold">${data.taskName}</p>
+              <p class="text-sm text-gray-400">${data.subject}</p>
+              <p class="text-sm text-gray-400">Due: ${data.dueDate}</p>
+            </div>
+            <button data-id="${docSnap.id}" class="delete-btn text-red-500 hover:text-red-700">🗑️</button>
+          `;
+          taskEl.querySelector(".delete-btn").addEventListener("click", async (e) => {
+            await deleteDoc(doc(db, `users/${userId}/tasks`, e.target.dataset.id));
+          });
+          tasksList.appendChild(taskEl);
+        });
+      });
+    }
+
+    // Chat tab logic
+    const chatTab = document.getElementById("chatTab");
+    const tasksTab = document.getElementById("tasksTab");
+    const chatSection = document.getElementById("chatSection");
+    const tasksSection = document.getElementById("tasksSection");
+
+    chatTab.addEventListener("click", () => {
+      chatTab.classList.add("active");
+      tasksTab.classList.remove("active");
+      chatSection.classList.remove("hidden");
+      tasksSection.classList.add("hidden");
+    });
+
+    tasksTab.addEventListener("click", () => {
+      tasksTab.classList.add("active");
+      chatTab.classList.remove("active");
+      chatSection.classList.add("hidden");
+      tasksSection.classList.remove("hidden");
+    });
+
+    // Chat logic (Gemini placeholder)
+    const sendBtn = document.getElementById("sendBtn");
+    const userInput = document.getElementById("userInput");
+    const chatMessages = document.getElementById("chatMessages");
+
+    sendBtn.addEventListener("click", handleChat);
+    userInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") handleChat();
+    });
+
+    async function handleChat() {
+      const text = userInput.value.trim();
+      if (!text) return;
+      addMessage(text, "user");
+      userInput.value = "";
+
+      addMessage("Thinking...", "ai");
+      // Here you’ll call Gemini API later:
+      // const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=YOUR_API_KEY", {...})
+      // For now, fake reply:
+      setTimeout(() => {
+        chatMessages.lastChild.textContent = "Sorry, I couldn’t get a response (Gemini API key missing).";
+      }, 1000);
+    }
+
+    function addMessage(text, sender) {
+      const msg = document.createElement("div");
+      msg.className = `message ${sender}`;
+      msg.textContent = text;
+      chatMessages.appendChild(msg);
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+  </script>
+</body>
+</html>
